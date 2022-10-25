@@ -908,12 +908,12 @@ class ServiceInstruments(DTXService):
                 "memVirtualSize", "cpuUsage", "ctxSwitch", "intWakeups",
                 "physFootprint", "memResidentSize", "memAnon", "pid"
             ],
-            "sampleInterval": 1000000000, # 1e9 ns == 1s
+            "sampleInterval": 500000000, # 1e9 ns == 1s
             "sysAttrs": [
                 "vmExtPageCount", "vmFreeCount", "vmPurgeableCount",
                 "vmSpeculativeCount", "physMemSize"
             ],
-            "ur": 1000
+            "ur": 500
         }
 
         channel_id = self.make_channel(InstrumentsService.Sysmontap)

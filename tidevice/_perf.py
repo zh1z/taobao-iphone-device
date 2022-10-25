@@ -196,10 +196,10 @@ def _iter_complex_cpu_memory(d: BaseDevice,
 
             # 很诡异的计算方法，不过也就这种方法计算出来的CPU看起来正常一点
             # 计算后的cpuUsage范围 [0, 100]
-            # cpu_total_load /= cpu_count
-            # cpu_usage *= cpu_total_load
-            # if total_cpu_usage > 0:
-            #     cpu_usage /= total_cpu_usage
+            cpu_total_load /= cpu_count
+            cpu_usage *= cpu_total_load
+            if total_cpu_usage > 0:
+                cpu_usage /= total_cpu_usage
 
             # print("cpuUsage: {}, total: {}".format(cpu_usage, total_cpu_usage))
             # print("memory: {} MB".format(pinfo.physFootprint / 1024 / 1024))
