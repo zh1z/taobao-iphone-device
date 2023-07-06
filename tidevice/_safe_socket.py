@@ -15,7 +15,7 @@ import typing
 import weakref
 from typing import Any, Union
 
-from ._proto import PROGRAM_NAME
+from ._proto import PROGRAM_NAME, UsbmuxMessageType
 from ._utils import set_socket_timeout
 from .exceptions import *
 
@@ -27,11 +27,13 @@ _nlock = threading.Lock()
 _id_numbers = []
 
 def acquire_uid() -> int:
-    logger.info("Create new socket, total {}", len(_id_numbers) + 1)
+    _id = None
     with _nlock:
         _n[0] += 1
         _id_numbers.append(_n[0])
-        return _n[0]
+        _id = _n[0]
+    logger.info("Opening socket: id={}", _id)
+    return _id
 
 
 def release_uid(id: int):
@@ -39,16 +41,16 @@ def release_uid(id: int):
         _id_numbers.remove(id)
     except ValueError:
         pass
-    logger.info("Release socket, total: {}", len(_id_numbers))
+    logger.info("Closing socket, id={}", id)
     
 
 
 class SafeStreamSocket:
-    def __init__(self, addr: Union[str, tuple, socket.socket,
+    def __init__(self, addr: Union[str, typing.Tuple[str, int], socket.socket,
                                    Any]):
         """
         Args:
-            addr: can be /var/run/usbmuxd or (localhost, 27015)
+            addr: can be /var/run/usbmuxd or localhost:27015 or (localhost, 27015)
         """
         self._id = acquire_uid()
         self._sock = None
@@ -66,7 +68,7 @@ class SafeStreamSocket:
                 elif os.path.exists(addr):
                     family = socket.AF_UNIX
                 else:
-                    raise MuxError("socket unix:{} unable to connect".format(addr))
+                    raise SocketError("socket unix:{} unable to connect".format(addr))
             else:
                 family = socket.AF_INET
             self._sock = socket.socket(family, socket.SOCK_STREAM)
@@ -76,9 +78,9 @@ class SafeStreamSocket:
     
     def _cleanup(self):
         release_uid(self.id)
-        self._sock.close()
         if self._dup_sock:
             self._dup_sock.close()
+        self._sock.close()
 
     def close(self):
         self._finalizer()
@@ -103,19 +105,36 @@ class SafeStreamSocket:
         return self._sock
 
     def recv(self, bufsize: int = 4096) -> bytes:
-        return self._sock.recv(bufsize)
+        """recv data from socket
+        Args:
+            bufsize: buffer size
+
+        Raises:
+            SocketError
+        """
+        try:
+            return self._sock.recv(bufsize)
+        except socket.timeout as e:
+            raise SocketError("socket timeout") from e
+        except ssl.SSLError as e:
+            raise SocketError("ssl error") from e
+        except Exception as e:
+            raise SocketError("socket error") from e
 
     def recvall(self, size: int) -> bytearray:
         buf = bytearray()
         while len(buf) < size:
-            chunk = self._sock.recv(size - len(buf))
+            chunk = self.recv(size-len(buf))
             if not chunk:
-                raise ConnectionError("socket connection broken")
+                raise SocketError("recvall: socket connection broken")
             buf.extend(chunk)
         return buf
 
     def sendall(self, data: Union[bytes, bytearray]) -> int:
-        return self._sock.sendall(data)
+        try:
+            return self._sock.sendall(data)
+        except Exception as e:
+            raise SocketError("sendall error") from e
 
     def ssl_unwrap(self):
         assert isinstance(self._sock, ssl.SSLSocket)
@@ -125,12 +144,13 @@ class SafeStreamSocket:
 
     def switch_to_ssl(self, pemfile):
         """ wrap socket to SSLSocket """
-        # logger.debug("Switch to ssl")
+        logger.debug("Socket({}): switch to ssl", self.id)
         assert os.path.isfile(pemfile)
         
         # https://docs.python.org/zh-cn/3/library/ssl.html#ssl.SSLContext
         context = ssl.SSLContext(ssl.PROTOCOL_TLS)
         try:
+            context.verify_mode = ssl.CERT_NONE # try to fix ssl.SSLEOFError: EOF occurred in violation of protocol (_ssl.c:1123)
             context.set_ciphers("ALL:@SECLEVEL=0") # fix md_too_weak error
         except ssl.SSLError:
             # ignore: no ciphers can be selected.
@@ -163,10 +183,10 @@ class PlistSocket(SafeStreamSocket):
     def prepare(self):
         pass
 
-    def is_secure(self):
+    def is_secure(self) -> bool:
         return isinstance(self._sock, ssl.SSLSocket)
 
-    def send_packet(self, payload: dict, message_type: int = 8):
+    def send_packet(self, payload: dict, message_type: int = UsbmuxMessageType.PLIST):
         """
         Args:
             payload: required
@@ -175,9 +195,6 @@ class PlistSocket(SafeStreamSocket):
             message_type: 8 (Plist)
             tag: int
         """
-        #if self.is_secure():
-        #    logger.debug(secure_text + " send: {}", payload)
-        #else:
         logger.debug("SEND({}): {}", self.id, payload)
 
         body_data = plistlib.dumps(payload)
@@ -205,10 +222,6 @@ class PlistSocket(SafeStreamSocket):
         if 'PairRecordData' in payload:
             logger.debug("Recv pair record data ...")
         else:
-            # if self.is_secure():
-            #    logger.debug(secure_text + " recv" + Color.END + ": {}",
-            #                 payload)
-            # else:
             logger.debug("RECV({}): {}", self.id, payload)
         return payload
 

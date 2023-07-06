@@ -122,15 +122,18 @@ def iter_gpu(d: BaseDevice) -> Iterator[Any]:
 def iter_screenshot(d: BaseDevice) -> Iterator[Tuple[DataType, dict]]:
     for img in d.iter_screenshot():
         _time = time.time()
-        img.thumbnail((500, 500))  # 缩小图片已方便保存
+        img.thumbnail((200, 200))  # 缩小图片已方便保存
+        
+        buffered = BytesIO()
+        img.save(buffered, format="JPEG")
+        img_str = base64.b64encode(buffered.getvalue())
         
         # example of convert image to bytes
         # buf = io.BytesIO()
         # img.save(buf, format="JPEG")
 
         # turn image to URL
-        yield DataType.SCREENSHOT, {"time": _time, "value": img}
-
+        yield DataType.SCREENSHOT, {"time": _time, "value": img, "img_str": img_str, "type": "screenshot"}
 
 
 ProcAttrs = namedtuple("ProcAttrs", SYSMON_PROC_ATTRS)
@@ -254,11 +257,13 @@ def iter_network_flow(d: BaseDevice, rp: RunningProcess) -> Iterator[Any]:
             # if n < 2:
             #     n += 1
             #     continue
-            yield DataType.NETWORK, {
-                "timestamp": gen_stimestamp(),
-                "downFlow": (nstat['rx.bytes'] or 0) / 1024,
-                "upFlow": (nstat['tx.bytes'] or 0) / 1024
-            }
+            nstat['timestamp'] = gen_stimestamp()
+            yield DataType.NETWORK, nstat 
+            # {
+            #     "timestamp": gen_stimestamp(),
+            #     "downFlow": (nstat['rx.bytes'] or 0) / 1024,
+            #     "upFlow": (nstat['tx.bytes'] or 0) / 1024
+            # }
 
 
 def append_data(wg: WaitGroup, stop_event: threading.Event,
@@ -313,7 +318,7 @@ class Performance():
         if DataType.GPU in self._perfs:
             iters.append(iter_gpu(self._d))
         if DataType.SCREENSHOT in self._perfs:
-            iters.append(set_interval(iter_screenshot(self._d), 1.0))
+            iters.append(set_interval(iter_screenshot(self._d), 2.0))
         if DataType.NETWORK in self._perfs:
             iters.append(iter_network_flow(self._d, self._rp))
         for it in (iters): # yapf: disable
@@ -326,7 +331,15 @@ class Performance():
 
     def stop(self): # -> PerfReport:
         self._stop_event.set()
-        print("Stopped")
+        with self._d.connect_instruments() as ts:
+            print('Stop Sampling...')
+            if DataType.NETWORK in self._perfs: ts.stop_network_iter()
+            if DataType.GPU in self._perfs or DataType.FPS in self._perfs: ts.stop_iter_opengl_data()
+            if DataType.CPU in self._perfs or DataType.MEMORY in self._perfs: ts.stop_iter_cpu_memory()
+                
+            
+        print("\nFinished!")
+
         # memory and fps will take at least 1 second to catch _stop_event
         # to make function run faster, we not using self._wg.wait(..) here
         # > self._wg.wait(timeout=3.0) # wait all stopped

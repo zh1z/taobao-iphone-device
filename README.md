@@ -24,6 +24,12 @@ QQ交流群: _134535547_  (进群答案: ios)
 
 支持运行在Mac，Linux，Windows上
 
+## 赞助商
+[![霍格沃兹测试开发学社](https://testing-studio.com/img/icon.png)](https://qrcode.testing-studio.com/f?from=tidevice&url=https://testing-studio.com/)
+
+霍格沃兹测试开发学社：中国软件测试开发高端教育品牌，产品由国内顶尖软件测试开发技术专家携手打造。为企业与个人提供专业的技能培训与咨询、测试工具与测试平台、测试外包与测试众包服务。领域涵盖App/Web自动化测试、接口自动化测试、性能测试、安全测试、持续交付/DevOps、测试左移、测试右移、精准测试、测试平台开发、测试管理等方向，[**联系我们**](https://qrcode.testing-studio.com/f?from=tidevice&url=https://ceshiren.com/t/topic/23806)
+
+
 ## 安装
 
 Python 3.6+
@@ -41,6 +47,13 @@ pip3 install -U tidevice
 > Windows电脑需要安装并启动Itunes
 
 ## 使用
+
+> 使用--trace选项可以查看socket数据流
+
+### 手机配置
+iOS 16的手机需要手工开启开发者选项。
+开启方法：设置->隐私与安全性->开发者模式 （打开），然后会提示重启 （点击 重新启动） -> 启动后会弹窗 是否打开“开发者模式”？（点击打开）
+
 
 ### 查看版本号
 ```bash
@@ -325,13 +338,17 @@ $ tidevice syslog
 
 ```bash
 # 性能采集
-$ tidevice perf -B com.example.demo
-fps {'fps': 0, 'value': 0, 'timestamp': 1620725299495}
-network {'timestamp': 1620725300511, 'downFlow': 55685.94921875, 'upFlow': 2300.96484375}
-screenshot {'value': <PIL.PngImagePlugin.PngImageFile image mode=RGB size=231x500 at 0x1037CF760>, 'timestamp': 1620725301374}
-fps {'fps': 58, 'value': 58, 'timestamp': 1620725873152}
-cpu {'timestamp': 1620725873348, 'pid': 21243, 'value': 1.2141945711006428}
-memory {'pid': 21243, 'timestamp': 1620725873348, 'value': 40.54920196533203}
+$ tidevice perf -B com.example.demo --json
+
+cpu {"timestamp": 1671173334888, "pid": 18717, "value": 0.0, "sys_value": 53.26736370425692, "count": 6}
+memory {"pid": 18717, "timestamp": 1671173334888, "value": 10.20428466796875}
+gpu {"device": 0, "renderer": 0, "tiler": 0, "value": 0, "timestamp": 1671173331745}
+fps {"fps": 0, "value": 0, "timestamp": 1671173331745}
+network {"connection-detected": {"Local": "[fe80::5cd8:6aff:fe80:78c3]:54658", "Remote": "[::]:0", "InterfaceIndex": 10, "Pid": -2, "RecvBufferSize": 131072, "RecvBufferUsed": 0, "SerialNumber": 14, "Protocol": "tcp6"}, "timestamp": 1671173331756}
+network {"interface-detection": {"InterfaceIndex": 10, "Name": "anpi0"}, "timestamp": 1671173331767}
+network {"interface-detection": {"InterfaceIndex": 14, "Name": "en0"}, "timestamp": 1671173331767}
+network {"connection-update": {"RxPackets": 2, "RxBytes": 72, "TxPackets": 3, "TxBytes": 163, "RxDups": null, "RxOOO": null, "TxRetx": null, "MinRTT": 0.039375, "AvgRTT": 0.042, "ConnectionSerial": 56, "Time": 2}, "timestamp": 1671173335754}
+...
 ```
 
 ```bash
@@ -372,6 +389,7 @@ Python code style(ZH): https://zh-google-styleguide.readthedocs.io/en/latest/goo
 - <https://github.com/danielpaulus/go-ios>
 - Go implemented: <https://github.com/electricbubble/gidevice>
 - https://github.com/SonicCloudOrg/sonic-ios-bridge
+- https://github.com/doronz88/pymobiledevice3 这个库用到的服务很全，还是Python的，参考起来更方便
 
 ## Thanks
 - C implementation <https://github.com/libimobiledevice>
